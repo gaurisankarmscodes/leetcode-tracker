@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>LeetCode Pattern Tracker</title>
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        background: #1e1e1e;
+        color: #eee;
+        margin: 40px;
+    }
+    h1 {
+        color: #4fc3f7;
+    }
+    table {
+        border-collapse: collapse;
+        width: 100%;
+        margin-top: 20px;
+    }
+    th, td {
+        border: 1px solid #444;
+        padding: 8px 12px;
+        text-align: left;
+    }
+    th {
+        background: #2a2a2a;
+    }
+    tr:nth-child(even) {
+        background: #262626;
+    }
+    button {
+        margin-right: 5px;
+        padding: 4px 10px;
+        cursor: pointer;
+        border: none;
+        border-radius: 4px;
+    }
+    .revise-btn {
+        background: #4caf50;
+        color: white;
+    }
+    .delete-btn {
+        background: #e53935;
+        color: white;
+    }
+    form {
+        margin-top: 30px;
+        background: #2a2a2a;
+        padding: 20px;
+        border-radius: 8px;
+        max-width: 400px;
+    }
+    form label {
+        display: block;
+        margin-top: 10px;
+        font-size: 14px;
+    }
+    form input, form select {
+        width: 100%;
+        padding: 6px;
+        margin-top: 4px;
+        box-sizing: border-box;
+        border-radius: 4px;
+        border: 1px solid #555;
+        background: #1e1e1e;
+        color: #eee;
+    }
+    form button {
+        margin-top: 15px;
+        background: #4fc3f7;
+        color: #000;
+        font-weight: bold;
+        padding: 8px 16px;
+    }
+</style>
+</head>
+<body>
+
+<h1>LeetCode Pattern Tracker</h1>
+
+<h2>Add a Problem</h2>
+<form id="addForm">
+    <label>LeetCode ID (from your dataset)</label>
+    <input type="number" id="leetcode_id" required>
+
+    <label>Problem Name</label>
+    <input type="text" id="problem_name_input" list="problemNamesList" autocomplete="off">
+    <datalist id="problemNamesList"></datalist>
+
+    <div id="problemNamePreview" style="margin-top:6px; font-size:13px; color:#4fc3f7;"></div>
+
+    <label>Pattern</label>
+    <input type="text" id="pattern" required>
+
+    <label>Difficulty</label>
+    <select id="difficulty" required>
+        <option value="Easy">Easy</option>
+        <option value="Medium">Medium</option>
+        <option value="Hard">Hard</option>
+    </select>
+
+    <label>Date Completed</label>
+    <input type="date" id="date_completed" required>
+
+    <button type="submit">Add Problem</button>
+</form>
+
+<h2>Your Problems</h2>
+<table id="problemsTable">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>LeetCode ID</th>
+            <th>Problem Name</th>
+            <th>Pattern</th>
+            <th>Difficulty</th>
+            <th>Date Completed</th>
+            <th>Revisions</th>
+            <th>Confidence</th>
+            <th>Next Revisit</th>
+            <th>Starred</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        <!-- rows filled in by JavaScript -->
+    </tbody>
+</table>
+
+<script>
+    const API_URL = "http://gaurisankar.pythonanywhere.com";
+
+    // Two lookup maps, built once when the page loads
+    let idToName = {};   // e.g. {1: "Two Sum"}
+    let nameToId = {};   // e.g. {"Two Sum": 1}
+
+    async function loadQuestionMap() {
+        const response = await fetch(`${API_URL}/leetcode_questions`);
+        const questions = await response.json();
+
+        const datalist = document.getElementById("problemNamesList");
+
+        questions.forEach(q => {
+            idToName[q.id] = q.title;
+            nameToId[q.title] = q.id;
+
+            const option = document.createElement("option");
+            option.value = q.title;
+            datalist.appendChild(option);
+        });
+    }
+
+    // Flag to avoid the two fields re-triggering each other in a loop
+    let isSyncing = false;
+
+    // Typing/selecting an ID fills in the name
+    document.getElementById("leetcode_id").addEventListener("input", function() {
+        if (isSyncing) return;
+        const id = this.value;
+        const preview = document.getElementById("problemNamePreview");
+        const nameInput = document.getElementById("problem_name_input");
+
+        if (idToName[id]) {
+            preview.textContent = "✓ " + idToName[id];
+            isSyncing = true;
+            nameInput.value = idToName[id];
+            isSyncing = false;
+        } else if (id) {
+            preview.textContent = "No matching problem found for this ID";
+        } else {
+            preview.textContent = "";
+        }
+    });
+
+    // Typing/selecting a Name fills in the ID
+    document.getElementById("problem_name_input").addEventListener("input", function() {
+        if (isSyncing) return;
+        const name = this.value;
+        const idInput = document.getElementById("leetcode_id");
+        const preview = document.getElementById("problemNamePreview");
+
+        if (nameToId[name]) {
+            isSyncing = true;
+            idInput.value = nameToId[name];
+            isSyncing = false;
+            preview.textContent = "✓ " + name;
+        }
+    });
+
+    // Fetch all problems and display them in the table
+    async function loadProblems() {
+        const response = await fetch(`${API_URL}/problems`);
+        const problems = await response.json();
+
+        const tbody = document.querySelector("#problemsTable tbody");
+        tbody.innerHTML = ""; // clear existing rows before re-drawing
+
+        problems.forEach(p => {
+            const row = document.createElement("tr");
+            row.innerHTML = `
+                <td>${p.id}</td>
+                <td>${p.leetcode_id}</td>
+                <td>${idToName[p.leetcode_id] ?? "-"}</td>
+                <td>${p.pattern}</td>
+                <td>${p.difficulty}</td>
+                <td>${p.date_completed}</td>
+                <td>${p.revision_count}</td>
+                <td>
+                    <input type="range" min="0" max="100" value="${p.confidence}"
+                        oninput="document.getElementById('confVal${p.id}').textContent = this.value"
+                        onchange="updateConfidence(${p.id}, this.value)">
+                    <span id="confVal${p.id}">${p.confidence}</span>%
+                </td>
+                <td>${p.next_revisit_date ?? "-"}</td>
+                <td>
+                    <span style="cursor:pointer; font-size:18px;" onclick="toggleStar(${p.id})">
+                        ${p.starred === 1 ? "⭐" : "☆"}
+                    </span>
+                </td>
+                <td>
+                    <button class="revise-btn" onclick="reviseProblem(${p.id})">Revise</button>
+                    <button class="delete-btn" onclick="deleteProblem(${p.id})">Delete</button>
+                </td>
+            `;
+            tbody.appendChild(row);
+        });
+    }
+
+    // Handle the "Add Problem" form submission
+    document.getElementById("addForm").addEventListener("submit", async function(event) {
+        event.preventDefault(); // stop the page from refreshing on submit
+
+        const newProblem = {
+            leetcode_id: parseInt(document.getElementById("leetcode_id").value),
+            pattern: document.getElementById("pattern").value,
+            difficulty: document.getElementById("difficulty").value,
+            date_completed: document.getElementById("date_completed").value
+        };
+
+        await fetch(`${API_URL}/problems`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(newProblem)
+        });
+
+        event.target.reset(); // clear the form
+        loadProblems(); // refresh the table
+    });
+
+    // Mark a problem as revised, then open LeetCode's problem set in a new tab
+    async function reviseProblem(id) {
+        await fetch(`${API_URL}/problems/${id}/revise`, { method: "PUT" });
+        window.open("https://leetcode.com/problemset/", "_blank");
+        loadProblems();
+    }
+
+    // Update confidence level for a problem
+    async function updateConfidence(id, value) {
+        await fetch(`${API_URL}/problems/${id}/confidence`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ confidence: parseInt(value) })
+        });
+    }
+
+    // Toggle star on a problem
+    async function toggleStar(id) {
+        await fetch(`${API_URL}/problems/${id}/star`, { method: "PUT" });
+        loadProblems();
+    }
+
+    // Delete a problem
+    async function deleteProblem(id) {
+        await fetch(`${API_URL}/problems/${id}`, { method: "DELETE" });
+        loadProblems();
+    }
+
+    // Load the question lookup map first, then the problems table
+    async function init() {
+        await loadQuestionMap();
+        await loadProblems();
+    }
+    init();
+</script>
+
+</body>
+</html>
