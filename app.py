@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_file
 import sqlite3
 from datetime import date, timedelta
 
@@ -19,7 +19,7 @@ def get_interval_days(difficulty, revision_count):
 
 @app.route("/")
 def home():
-    return "Hello, tracker!"
+    return send_file("index.html")
 
 @app.route("/problems", methods=["GET"])
 def get_problems():
